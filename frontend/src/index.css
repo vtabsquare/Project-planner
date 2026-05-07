@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-gold-50: #fffcf0;
+  --color-gold-100: #fef1c7;
+  --color-gold-200: #fde08a;
+  --color-gold-300: #fcc34d;
+  --color-gold-400: #faa31b;
+  --color-gold-500: #f5840b;
+  --color-gold-600: #d96206;
+  --color-gold-700: #b44409;
+  --color-gold-800: #92350e;
+  --color-gold-900: #782c0f;
+  --color-gold-950: #451503;
+}
+
+@layer base {
+  body {
+    @apply antialiased transition-colors duration-300 bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100;
+  }
+}
+
+@layer components {
+  .technical-card {
+    @apply bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-none overflow-hidden transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] dark:hover:border-gold-500/30;
+  }
+  
+  .accent-gold {
+    @apply bg-gold-600 text-white shadow-lg shadow-gold-600/20 hover:bg-gold-500 active:scale-[0.98] transition-all;
+  }
+  
+  .status-badge-progress {
+    @apply px-2 py-0.5 bg-amber-50 dark:bg-gold-900/20 text-amber-700 dark:text-gold-400 text-[10px] font-black uppercase rounded-md border border-amber-200 dark:border-gold-800/50 tracking-wider;
+  }
+  
+  .status-badge-completed {
+    @apply px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-black uppercase rounded-md border border-emerald-200 dark:border-emerald-800/50 tracking-wider;
+  }
+
+  .luxury-gradient {
+    @apply bg-gradient-to-br 
+           from-white via-slate-50 to-amber-50/50
+           dark:from-slate-900 dark:via-slate-800 dark:to-gold-950/30;
+  }
+}

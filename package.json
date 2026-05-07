@@ -1,0 +1,20 @@
+{
+  "name": "aethertracker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "dev": "concurrently \"cd backend && node server.js\" \"cd frontend && npm run dev\"",
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && node server.js",
+    "postinstall": "cd backend && npm install",
+    "clean": "rm -rf frontend/dist"
+  },
+  "dependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}

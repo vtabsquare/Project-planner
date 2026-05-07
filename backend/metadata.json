@@ -1,0 +1,6 @@
+{
+  "name": "AetherTracker",
+  "description": "A streamlined project and task tracker powered by Google Sheets. Monitor releases, track team progress, and manage personal daily checklists in one place.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

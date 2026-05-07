@@ -1,0 +1,17 @@
+{
+  "name": "aethertracker-backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@google/genai": "^1.29.0",
+    "axios": "^1.16.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-session": "^2.1.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "googleapis": "^171.4.0",
+    "mongoose": "^8.9.0"
+  }
+}
