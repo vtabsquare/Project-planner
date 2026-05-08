@@ -89,21 +89,7 @@ export default function MainLayout({ user, refreshing, loadData, onLogout, darkM
             onClick={() => navigate('/settings')} 
           />
           
-          <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
-             <div className="px-3">
-                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Sync Status</p>
-                <div className="flex items-center gap-2">
-                   <div className={cn("w-1.5 h-1.5 rounded-full", refreshing ? "bg-gold-500 animate-pulse" : "bg-emerald-500")}></div>
-                   <span className="text-[9px] font-mono font-bold text-slate-500 uppercase">{refreshing ? 'Synchronizing...' : 'Live Protocol'}</span>
-                </div>
-             </div>
-             <button 
-               onClick={loadData}
-               className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-[9px] font-black text-slate-500 hover:text-gold-600 transition-all uppercase tracking-widest flex items-center gap-2"
-             >
-               <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} /> Force Refresh
-             </button>
-          </div>
+
         </aside>
 
         {/* Main Content */}

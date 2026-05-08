@@ -39,7 +39,7 @@ const SCOPES = [
 async function seedSystemUsers() {
   const adminPassword = await bcrypt.hash('Sanjay@1306', 10);
   const userPassword = await bcrypt.hash('User@123', 10);
-  
+
   const admins = [
     { email: 'sanjaysaravanan130604@gmail.com', name: 'Sanjay Saravanan' },
     { email: 'sanjaysaravanan.vtab@gmail.com', name: 'Sanjay VTAB' }
@@ -55,7 +55,7 @@ async function seedSystemUsers() {
     const picture = `https://ui-avatars.com/api/?name=${encodeURIComponent(admin.name)}&background=F5840B&color=fff`;
     await User.findOneAndUpdate(
       { email: admin.email },
-      { 
+      {
         $setOnInsert: { password: adminPassword, name: admin.name, picture },
         $set: { role: 'admin' }
       },
@@ -152,7 +152,7 @@ async function startServer() {
       oauth2Client.setCredentials(tokens);
       const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
       const { data } = await oauth2.userinfo.get();
-      
+
       let user = await User.findOne({ email: data.email.toLowerCase() });
       if (!user) {
         user = await User.create({
@@ -176,10 +176,10 @@ async function startServer() {
     auth.setCredentials(req.session.tokens);
     const drive = google.drive({ version: 'v3', auth });
     try {
-      const response = await drive.files.list({ 
-        q: "name = 'AetherTracker_Data' and mimeType = 'application/vnd.google-apps.spreadsheet'", 
-        fields: 'files(id, name)', 
-        spaces: 'drive' 
+      const response = await drive.files.list({
+        q: "name = 'AetherTracker_Data' and mimeType = 'application/vnd.google-apps.spreadsheet'",
+        fields: 'files(id, name)',
+        spaces: 'drive'
       });
       res.json(response.data.files[0] || null);
     } catch (error) {
