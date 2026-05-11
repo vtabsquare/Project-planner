@@ -9,6 +9,7 @@ const taskSchema = new mongoose.Schema({
   priority: { type: String, default: 'Medium' },
   dueDate: Date,
   prerequisites: [String],
+  dependsOn: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Task' }],
   description: String,
   completedAt: Date,
   createdAt: { type: Date, default: Date.now },

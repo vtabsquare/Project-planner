@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, Database, BarChart2, CheckSquare, Plus,
   Trash2, Edit2, ChevronRight, ChevronDown, Filter, Layers,
@@ -22,10 +22,12 @@ export default function ProjectDashboard({
   onShowTaskHistory,
   onConfirm,
   setSelectedProject,
-  user
+  user,
+  onToast
 }) {
   const [showAddProject, setShowAddProject] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', version: '', description: '', estimatedCompletionDate: '' });
+  const dateInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState({});
   const [dashboardMode, setDashboardMode] = useState('table');
@@ -88,6 +90,17 @@ export default function ProjectDashboard({
   };
 
   const handleDeleteVersion = (p) => {
+    // Prevent deleting the last version in a group
+    const group = projectGroups[p.name] || [];
+    if (group.length <= 1) {
+      if (onToast) {
+        onToast('Terminal Version Protected: Cannot delete the last remaining version of a project.', 'error');
+      } else {
+        alert('Cannot delete the last remaining version of a project. Delete the project cluster instead.');
+      }
+      return;
+    }
+
     onConfirm({
       title: 'Decommission Branch',
       message: `Are you sure you want to delete ${p.name} v${p.version}? This action will permanently wipe all associated task data and cannot be undone.`,
@@ -97,9 +110,11 @@ export default function ProjectDashboard({
         try {
           const service = DataService.getInstance().getService();
           await service.deleteProject(spreadsheetId || '', p.name, p.version);
+          if (onToast) onToast(`${p.name} v${p.version} eradicated`);
           onRefresh();
         } catch (e) {
           console.error(e);
+          if (onToast) onToast(e.message || 'Deletion failed', 'error');
         } finally {
           setLoading(false);
         }
@@ -117,9 +132,11 @@ export default function ProjectDashboard({
         try {
           const service = DataService.getInstance().getService();
           await service.deleteProjectCluster(spreadsheetId || '', projectName);
+          if (onToast) onToast(`Project Cluster ${projectName} eradicated`);
           onRefresh();
         } catch (e) {
           console.error(e);
+          if (onToast) onToast(e.message || 'Deletion failed', 'error');
         } finally {
           setLoading(false);
         }
@@ -138,10 +155,10 @@ export default function ProjectDashboard({
     setShowAddProject(true);
   };
 
-  const handleSaveCoordinators = async (coords) => {
+  const handleSaveCoordinators = async (version, coords) => {
     try {
       const service = DataService.getInstance().getService();
-      await service.updateCoordinators(spreadsheetId || '', coordinationProject.name, coordinationProject.version, coords);
+      await service.updateCoordinators(spreadsheetId || '', coordinationProject.name, version, coords);
       onRefresh();
       alert('Coordinators updated and notifications transmitted.');
     } catch (e) {
@@ -150,15 +167,15 @@ export default function ProjectDashboard({
     }
   };
 
-  const handleRemoveCoordinator = async (email) => {
-    console.log(`[FINAL_DEBUG] Dashboard handleRemoveCoordinator called for ${email}`);
+  const handleRemoveCoordinator = async (email, version) => {
+    const ver = version || coordinationProject?.versions?.[0]?.version;
+    console.log(`[COORD] Remove ${email} from version ${ver}`);
     try {
       const service = DataService.getInstance().getService();
-      const result = await service.removeCoordinator(spreadsheetId || '', coordinationProject.name, coordinationProject.version, email);
-      console.log('[FINAL_DEBUG] backend removal success:', result);
+      await service.removeCoordinator(spreadsheetId || '', coordinationProject.name, ver, email);
       onRefresh();
     } catch (e) {
-      console.error('[FINAL_DEBUG] backend removal failure:', e);
+      console.error('[COORD] Remove failed:', e);
       alert('Delete failed: ' + e.message);
       throw e;
     }
@@ -339,6 +356,15 @@ export default function ProjectDashboard({
                             <span className="status-badge-progress">HIERARCHICAL</span>
                           </td>
                           <td className="px-6 py-5 text-right flex items-center justify-end gap-2">
+                            {isAdmin && (
+                              <button
+                                onClick={() => setCoordinationProject({ name: projectName, versions: groupVersions })}
+                                className="p-2 text-slate-400 hover:text-gold-600 hover:scale-110 transition-transform"
+                                title="Manage Cluster Personnel"
+                              >
+                                <Users className="w-5 h-5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 setNewProject({ name: projectName, version: '' });
@@ -435,14 +461,7 @@ export default function ProjectDashboard({
                                                     ) : (
                                                       <span className="status-badge-progress">{v.status === 'Closed' ? 'CLOSED' : 'ACTIVE'}</span>
                                                     )}
-                                                    {isAdmin && (
-                                                      <button
-                                                        onClick={() => setCoordinationProject(v)}
-                                                        className="ml-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[8px] font-black uppercase tracking-widest rounded hover:bg-gold-600 hover:text-white transition-all flex items-center gap-1.5"
-                                                      >
-                                                        <Users className="w-2.5 h-2.5" /> 
-                                                      </button>
-                                                    )}
+
                                                   </div>
                                                 </td>
                                                 <td className="px-6 py-4">
@@ -626,13 +645,17 @@ export default function ProjectDashboard({
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Estimated Completion Date</label>
-                <div className="relative">
+                <div
+                  className="relative cursor-pointer"
+                  onClick={() => dateInputRef.current?.showPicker?.()}
+                >
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="date"
+                    ref={dateInputRef}
                     value={newProject.estimatedCompletionDate}
                     onChange={e => setNewProject({ ...newProject, estimatedCompletionDate: e.target.value })}
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm transition-all focus:border-gold-500 focus:outline-none dark:text-white"
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-sm transition-all focus:border-gold-500 focus:outline-none dark:text-white cursor-pointer"
                   />
                 </div>
               </div>
@@ -661,7 +684,7 @@ export default function ProjectDashboard({
       <AnimatePresence>
         {coordinationProject && (
           <CoordinatorsModal
-            project={projects.find(p => p.name === coordinationProject.name && p.version === coordinationProject.version) || coordinationProject}
+            projectGroup={coordinationProject}
             onClose={() => setCoordinationProject(null)}
             onSave={handleSaveCoordinators}
             onDelete={handleRemoveCoordinator}

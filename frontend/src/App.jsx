@@ -204,6 +204,7 @@ export default function App() {
                     setSelectedProject={setSelectedProject}
                     onCloseProject={handleCloseProject}
                     onConfirm={setConfirmConfig}
+                    onToast={showToast}
                   />
                 }
               />

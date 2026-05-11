@@ -4,7 +4,22 @@ import Task from '../models/Task.js';
 import DailyTask from '../models/DailyTask.js';
 import LaunchItem from '../models/LaunchItem.js';
 import User from '../models/User.js';
-import { sendCoordinatorEmail } from '../utils/emailService.js';
+import {
+  sendCoordinatorEmail,
+  notifyAllCoordinatorsOnNewMember,
+  notifyNewVersion,
+  notifyNewTask,
+  notifyTaskCompleted,
+  notifyProjectClosed
+} from '../utils/emailService.js';
+
+// Helper: get all admin email addresses from DB
+const getAdminEmails = async () => {
+  try {
+    const admins = await User.find({ role: 'admin' }, { email: 1 });
+    return admins.map(a => a.email);
+  } catch { return []; }
+};
 
 const router = express.Router();
 
@@ -52,6 +67,15 @@ router.post('/projects', async (req, res) => {
     await project.save();
     console.log('PROJECT_CREATED_SUCCESS:', project._id);
     res.json(project);
+
+    // Notify all coordinators + admins about the new version (fire-and-forget)
+    const adminEmails = await getAdminEmails();
+    const allProjects = await Project.find({ name: project.name });
+    // Collect all coordinators across all versions of this project name
+    const allCoords = allProjects.flatMap(p => p.coordinators || []);
+    notifyNewVersion(project, allCoords, adminEmails).catch(err =>
+      console.error('[EMAIL] notifyNewVersion failed:', err.message)
+    );
   } catch (e) {
     console.error('CREATE_PROJECT_ERROR:', e.message);
     res.status(400).json({ error: e.message });
@@ -89,6 +113,17 @@ router.delete('/projects/:name/:version', async (req, res) => {
   try {
     const { name, version } = req.params;
     const filter = req.userRole === 'admin' ? { name, version } : { userId: req.session.userId, name, version };
+    
+    // Prevent deleting the last version of a project
+    const clusterFilter = req.userRole === 'admin' ? { name } : { userId: req.session.userId, name };
+    const versionCount = await Project.countDocuments(clusterFilter);
+    
+    if (versionCount <= 1) {
+      return res.status(400).json({ 
+        error: 'Terminal Version Protected: Cannot delete the last remaining version of a project. Please use the "Wipe Project Cluster" action for total removal.' 
+      });
+    }
+
     await Project.deleteOne(filter);
     await Task.deleteMany({ project: name, version, ...(req.userRole === 'admin' ? {} : { userId: req.session.userId }) });
     res.json({ success: true });
@@ -109,6 +144,14 @@ router.post('/projects/close', async (req, res) => {
     project.finalizedAt = isClosing ? new Date() : null;
     await project.save();
     res.json(project);
+
+    // Notify all coordinators + admins when project is finalized
+    if (isClosing) {
+      const adminEmails = await getAdminEmails();
+      notifyProjectClosed(project, adminEmails).catch(err =>
+        console.error('[EMAIL] notifyProjectClosed failed:', err.message)
+      );
+    }
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -147,15 +190,20 @@ router.post('/projects/coordinators', async (req, res) => {
     const projectTasks = await Task.find({ project: name, version });
     console.log('Tasks found for email:', projectTasks.length);
 
-    // Send emails only to newly added coordinators
+    // Send emails: assignment to new coordinator, notification to all others + admins
+    const adminEmails = await getAdminEmails();
+    console.log(`[EMAIL-TRIGGER] newCoordinators=${JSON.stringify(newCoordinators.map(c=>c.email))}, adminEmails=${JSON.stringify(adminEmails)}`);
+
     for (const coord of newCoordinators) {
-      try {
-        console.log(`Sending email to: ${coord.email}`);
-        await sendCoordinatorEmail(coord, project, projectTasks);
-        console.log(`Email sent successfully to: ${coord.email}`);
-      } catch (mailErr) {
-        console.error(`Failed to send email to ${coord.email}:`, mailErr.message);
-      }
+      // 1. Send assignment email directly to the new coordinator
+      sendCoordinatorEmail(coord, project, projectTasks)
+        .then(() => console.log(`[EMAIL] Assignment email sent to ${coord.email}`))
+        .catch(err => console.error(`[EMAIL] Assignment email FAILED for ${coord.email}:`, err.message));
+
+      // 2. Notify all other coordinators + admins that a new member joined
+      notifyAllCoordinatorsOnNewMember(coord, project, adminEmails)
+        .then(() => console.log(`[EMAIL] Team-update email sent for new coord ${coord.email}`))
+        .catch(err => console.error(`[EMAIL] Team-update email FAILED for ${coord.email}:`, err.message));
     }
 
     res.json(project);
@@ -232,6 +280,15 @@ router.post('/tasks', async (req, res) => {
     const task = new Task({ ...req.body, userId: req.session.userId });
     await task.save();
     res.json(task);
+
+    // Notify all coordinators + admins about the new task
+    const project = await Project.findOne({ name: task.project, version: task.version });
+    if (project) {
+      const adminEmails = await getAdminEmails();
+      notifyNewTask(task, project, adminEmails).catch(err =>
+        console.error('[EMAIL] notifyNewTask failed:', err.message)
+      );
+    }
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -262,11 +319,61 @@ router.post('/tasks/status', async (req, res) => {
 
     if (!hasPermission) return res.status(403).json({ error: 'Permission denied: Not project owner or coordinator' });
     
+    // Check dependencies (ID-based and Name-based) if marking as Completed
+    if (status === 'Completed') {
+      const unfinishedDependencies = [];
+
+      // 1. Check ID-based dependencies (dependsOn)
+      if (existingTask.dependsOn && existingTask.dependsOn.length > 0) {
+        const unfinishedIdDeps = await Task.find({
+          _id: { $in: existingTask.dependsOn },
+          status: { $ne: 'Completed' }
+        });
+        if (unfinishedIdDeps.length > 0) {
+          unfinishedDependencies.push(...unfinishedIdDeps.map(t => t.name));
+        }
+      }
+
+      // 2. Check Name-based dependencies (prerequisites) - Case insensitive fallback
+      if (existingTask.prerequisites && existingTask.prerequisites.length > 0) {
+        const completedPrereqs = await Task.find({
+          project: existingTask.project,
+          version: existingTask.version,
+          name: { $in: existingTask.prerequisites.map(p => new RegExp(`^${p.trim()}`, 'i')) },
+          status: 'Completed'
+        });
+
+        if (completedPrereqs.length < existingTask.prerequisites.length) {
+          const completedNames = new Set(completedPrereqs.map(p => p.name.toLowerCase().trim()));
+          const missingOrUnfinished = existingTask.prerequisites.filter(name => !completedNames.has(name.toLowerCase().trim()));
+          unfinishedDependencies.push(...missingOrUnfinished);
+        }
+      }
+
+      if (unfinishedDependencies.length > 0) {
+        const uniqueUnfinished = [...new Set(unfinishedDependencies)];
+        return res.status(400).json({ 
+          error: `Access Denied: Prerequisites required [${uniqueUnfinished.join(', ')}] must be finalized before this signal can be marked as COMPLETED.` 
+        });
+      }
+    }
+
     existingTask.status = status;
     existingTask.completedAt = status === 'Completed' ? new Date() : null;
     existingTask.history.push({ status, timestamp: new Date() });
     await existingTask.save();
     res.json(existingTask);
+
+    // Notify all coordinators + admins when task is marked Completed
+    if (status === 'Completed') {
+      const project = await Project.findOne({ name: existingTask.project, version: existingTask.version });
+      if (project) {
+        const adminEmails = await getAdminEmails();
+        notifyTaskCompleted(existingTask, project, adminEmails).catch(err =>
+          console.error('[EMAIL] notifyTaskCompleted failed:', err.message)
+        );
+      }
+    }
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
