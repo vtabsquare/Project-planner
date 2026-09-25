@@ -31,6 +31,7 @@ export default function MainLayout({ user, refreshing, loadData, onLogout, darkM
         </div>
         
         <div className="flex items-center gap-4">
+          <a href="https://www.vtabsquare.com/?demo=1&product=project-planner&source=aethertracker-project-planner" target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-lg bg-gold-600 px-3 py-2 text-xs font-bold text-white hover:bg-gold-500 transition-colors">Contact for Demo ↗</a>
           <div className="relative">
             <button 
               onClick={() => {
