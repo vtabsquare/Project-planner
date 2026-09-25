@@ -111,6 +111,9 @@ export default function LoginView({ onLoginSuccess, onSwitchToGoogle }) {
             </button>
           </form>
           
+          <div className="px-8 py-4 bg-slate-900 border-t border-slate-800 text-center">
+            <a href="https://www.vtabsquare.com/?demo=1&product=project-planner&source=aethertracker-project-planner" target="_blank" rel="noopener noreferrer" className="inline-flex w-full items-center justify-center rounded-xl bg-gold-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-gold-500 transition-colors">Contact for Demo ↗</a>
+          </div>
           <div className="p-4 bg-slate-950/50 text-center border-t border-slate-800">
              <p className="text-[9px] font-mono text-slate-600 uppercase tracking-[0.3em]">
                SECURE_LINK // RSA_4096_ENCRYPTED
